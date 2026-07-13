@@ -1,0 +1,5 @@
+node_modules/
+projects/
+blank-slate.bundle
+.DS_Store
+Thumbs.db

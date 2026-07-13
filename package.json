@@ -1,0 +1,13 @@
+{
+  "name": "blank-slate",
+  "version": "2.0.0-alpha.1",
+  "description": "Blank-Slate.app — a moodboard/deck canvas where every tool is a single remixable file",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^28.0.0",
+    "sharp": "^0.33.2"
+  }
+}
