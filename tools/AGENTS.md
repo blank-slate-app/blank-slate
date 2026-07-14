@@ -27,9 +27,18 @@ documented below.
 5. **Remixing:** COPY the file → new filename → change `manifest.id` →
    set `manifest.basedOn` to the original id → **append** your name to
    `manifest.authors` (never remove existing names — that ledger is the
-   whole point). Your remix appears in the original tool's submenu.
+   whole point). Where your remix APPEARS depends on what it does:
+   - **Add-fork** (it creates the family's objects, e.g. Add Hi-Res
+     Image): contribute items to the family's toolbar flyout and
+     right-click canvas submenu. Live example: `images.hires.js`.
+   - **Operate-subfamily** (it acts on EXISTING objects of the family,
+     e.g. filters on images): contribute to the right-click menu of the
+     object itself via `objectMenus: { image: [ ...items ] }`. It does
+     NOT appear in the add menus.
 6. **New tool:** copy `_template.js` → new filename → unique `manifest.id`,
    no `basedOn`. Your tool gets its own toolbar button / menu entry.
+   (Filenames starting with `_` never load — that's why the template
+   itself doesn't appear in the app.)
 7. **Filename = manifest.id + `.js`.** Lowercase, hyphens allowed.
    Remix naming: `<family>.<yourname>.js` (e.g. `artboards.maya.js`).
 8. **Never corrupt data you don't understand.** Objects carry fields from
@@ -78,9 +87,19 @@ export function register(ctx) {
     tool: {
       icon: '<svg viewBox="0 0 24 24">...</svg>',   // 24-grid outline style, stroke currentColor
       title: 'My Tool (X)',
-      order: 40,                    // toolbar position among tools
+      order: 40,                    // rail position — or flyout position if in a family
       shortcut: 'x',                // single lowercase letter, no modifiers
       cursor: 'crosshair',          // viewport cursor while active
+      // OPTIONAL — join a toolbar FAMILY: separate tool files sharing one
+      // rail button whose hover flyout lists them (family → subfamily,
+      // same hierarchy as the right-click menus). Same-name families
+      // merge across files; the family button lights up when any member
+      // tool is active. E.g. shapes/draw/eyedropper all sit under 'Annotate'.
+      family: 'Annotate',
+      familyIcon: '<svg viewBox="0 0 24 24">...</svg>', // the rail button's icon
+      familyOrder: 30,              // the rail button's position
+      flyoutIcon: '<svg width="14" height="14" ...>',   // this tool's row icon
+      dividerBefore: true,          // opens a new band on the rail
       onActivate(ctx) {},           // e.g. ctx.showBar(myBarElement)
       onDeactivate(ctx) {},
       onPointerDown(e, ctx) {       // left-clicks while your tool is active
@@ -88,33 +107,74 @@ export function register(ctx) {
       },
     },
 
-    // Non-modal toolbar buttons (immediate actions, e.g. "Add Image")
+    // Non-modal toolbar buttons (immediate actions, e.g. "Add Image").
+    // Give a button `items` and it becomes a FAMILY button: hovering it
+    // reveals a flyout with the subfamily (like Text → Label/Title/…),
+    // mirroring the right-click menu hierarchy. `dividerBefore: true`
+    // opens a new band on the rail.
     toolbar: [
-      { icon: '<svg.../>', title: 'Add Thing', order: 10, action(ctx) {} },
+      { icon: '<svg.../>', title: 'Add Thing', order: 10, action(ctx, e) {} },
+      { icon: '<svg.../>', title: 'Thing', order: 11, items: [
+        { label: 'Variant A', order: 1, action(ctx) {} },
+      ] },
     ],
 
-    // Right-click-on-empty-canvas menu items.
-    // group: items with the same group cluster together (divider between groups).
+    // Right-click-on-empty-canvas menu contributions. Two shapes:
+    //   flat item:  { label, icon, order, action, checked?, dividerBefore? }
+    //   submenu:    { submenu: 'Add Text', icon, order, dividerBefore?,
+    //                 items: [{ label, icon?, order, action }] }
+    // Submenus with the SAME label merge across tools (that's how shapes/
+    // markup/draw/eyedropper share one "Annotate ▶" submenu). Everything
+    // sorts by `order`; `dividerBefore: true` draws a separator above.
+    // Order bands (match the original app's arrangement):
+    //   10 images · 20 text · 30 flowchart · 40 artboards/export · 90 annotate
     // Use ctx.contextWorld for "create it where I clicked".
     canvasMenu: [
-      { label: 'Add Thing', group: 'add', order: 1, action(ctx) {} },
-      { label: 'Things', group: 'add', order: 2, submenu: [ /* items */ ] },
+      { label: 'Add Thing', icon: '<svg.../>', order: 35, action(ctx, e) {} },
+      { submenu: 'Things', icon: '<svg.../>', order: 36, items: [ /* items */ ] },
     ],
 
     // Extra keyboard shortcuts (beyond the modal tool's own)
     shortcuts: [ { key: 'j', action(ctx) {} } ],
 
+    // Contribute menu items to an object type you DON'T own (this is how
+    // operate-subfamilies like filters appear when right-clicking an
+    // image). Items merge into that type's section, sorted by `order`
+    // (the owner's own items sort in the same list).
+    objectMenus: {
+      image: [ { label: 'My Filter…', order: 50, action(ctx) {} } ],
+      // or a function: image: (selObjs, ctx) => [ ...items ]
+    },
+
+    // Double-click on an object of a type you don't own (first handler
+    // to return true wins; the type owner is asked first).
+    onObjectDoubleClick(obj, e, ctx) { return false; },
+
+    // Raw pointer handlers — run on viewport mousedown even in pointer
+    // mode, BEFORE selection/move (priority 250 slots between the active
+    // tool at 200 and resize at 300). Return true to consume the event.
+    pointer: [ { priority: 250, handler(e, ctx) { return false; } } ],
+
     // App lifecycle hooks (all optional)
     onReady(ctx) {},                       // after project load + first render
     onDelete(deletedIdSet, ctx) {},        // may add ids (e.g. cascade deletes)
     onObjectsMoved(movedIdSet, ctx) {},    // during drags — keep it FAST
+    async onPasteEmpty(ctx) { return false; }, // Ctrl+V with no object clipboard
+                                           // (e.g. paste a bitmap); true = handled
   };
 }
 ```
 
-Menu item shape (used in `menu`, `canvasMenu`, submenus, and `ctx.openMenu`):
-`{ label, icon?, danger?, disabled?, action(ctx) }` or
-`{ label, submenu: [items] }` or `{ divider: true }`.
+Menu item shape (used in `menu`, `canvasMenu` items, submenus, `ctx.openMenu`):
+`{ label, icon?, danger?, disabled?, checked?, action(ctx, e) }` or
+`{ label, icon?, submenu: [items] }` or `{ divider: true }` or
+`{ html: '<div>…</div>', onClick(e, ctx) }` — a custom row (e.g. a color
+swatch row); your CSS styles it, `onClick` delegates via `e.target`.
+`checked` renders the ✓ state the original app used; `action` receives the
+click event so you can anchor popups (`e.target.getBoundingClientRect()`).
+UI FIDELITY RULE: when porting or remixing anything from the original
+Sketchbook app, the menu hierarchy, icons, labels, and order must match it
+exactly — the architecture is new, the UI is not.
 
 
 ## The ctx API (complete — if it's not here, you don't have it)
@@ -124,7 +184,11 @@ State
 - `ctx.selectedIds` — Set of selected ids
 - `ctx.project` — current project name
 - `ctx.getZoom()` — current zoom factor
+- `ctx.getActiveTool()` — active modal tool id, or null (pointer)
 - `ctx.contextWorld` — world coords of the last right-click (for menu actions)
+- `ctx.state.get(key)` / `ctx.state.set(key, value)` — small persisted
+  per-tool flags (saved with the project). Namespace keys with your tool
+  id, e.g. `'flowchart.flipped'`.
 
 Object ops
 - `ctx.createObject(props)` — normalizes, assigns id + top zIndex, pushes,
@@ -143,6 +207,12 @@ Coordinates
 - `ctx.screenToWorld(clientX, clientY)` → `{x, y}`
 - `ctx.viewportCenter()` → `{x, y}` (world coords of the visible center)
 
+Rendering services
+- `ctx.exportObject(c2d, obj, {x, y, scaleX, scaleY})` — draw any object
+  onto a 2d canvas via its type's `exportDraw` (returns false if the type
+  has none). This is how samplers and artboard exporters see other
+  tools' objects without knowing them.
+
 UI
 - `ctx.showToast(msg)` — never use alert()
 - `ctx.setTool(idOrNull)` — switch modal tool (null = pointer)
@@ -155,6 +225,7 @@ IO (all file access goes through these)
 - `ctx.io.dropImage(filePath)` / `ctx.io.pasteImage()` → `{assetPath, width, height}`
 - `ctx.io.removeWhiteBg(assetPath)` → `{assetPath, ...}`
 - `ctx.io.importExternalAsset(srcPath)` → `{path}` (localize a foreign asset)
+- `ctx.io.getFilePath(file)` → real filesystem path of a dropped File object
 - `ctx.io.exportJpeg(filename, dataUrl)` — save dialog
 - `ctx.io.pickFolder(title)` → path — then `ctx.io.saveJpegToFolder(folder, filename, dataUrl)`
 - `ctx.io.assetUrl(assetPath)` → `file://` URL for `<img src>`

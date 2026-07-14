@@ -47,6 +47,7 @@ let saveTimer = null;
 let spaceDown = false;
 let activeToolId = null;     // null = pointer
 let contextWorld = { x: 0, y: 0 }; // world coords of the last context menu
+let toolState = {};          // per-tool persisted flags (canvasState.toolState)
 
 // ── Registry ───────────────────────────────────────────────────────────
 // families: id → { manifest, decl, variants: [{manifest, decl}] }
@@ -192,7 +193,7 @@ async function saveProject() {
   dirty = false;
   await window.api.saveProject(projectName, {
     name: projectName,
-    canvasState: { panX, panY, zoom },
+    canvasState: { panX, panY, zoom, toolState: JSON.parse(JSON.stringify(toolState)) },
     objects: JSON.parse(JSON.stringify(objects)),
   });
   saveIndicator.classList.add('show');
@@ -574,20 +575,32 @@ viewport.addEventListener('wheel', (e) => {
   applyTransform();
 }, { passive: false });
 
-// Double-click dispatch: the target object's type may handle it
+// Double-click dispatch: the type owner gets it first; then any tool's
+// decl.onObjectDoubleClick(obj, e, ctx) (first to return true wins) —
+// this lets subfamily files own interactions on types they don't own
+// (e.g. images.crop opens crop mode on double-clicked images).
 viewport.addEventListener('dblclick', (e) => {
   const objEl = e.target.closest('.canvas-obj');
   if (!objEl) return;
   const obj = objects.find(o => o.id === parseInt(objEl.dataset.id));
   if (!obj) return;
   const def = registry.typeDef(obj.type);
-  if (def && def.onDoubleClick) { try { def.onDoubleClick(obj, e, ctx); } catch (err) { console.error(err); } }
+  if (def && def.onDoubleClick) {
+    try { if (def.onDoubleClick(obj, e, ctx)) return; } catch (err) { console.error(err); }
+  }
+  for (const t of registry.allTools()) {
+    if (t.decl.onObjectDoubleClick) {
+      try { if (t.decl.onObjectDoubleClick(obj, e, ctx)) return; } catch (err) { console.error(err); }
+    }
+  }
 });
 
 // ── Menus (generated) ──────────────────────────────────────────────────
 // Generic popup builder — also exposed to tools as ctx.ui.openMenu.
-// items: { label, icon?, danger?, disabled?, action? } |
-//        { label, submenu: [items] } | { divider: true }
+// items: { label, icon?, danger?, disabled?, checked?, action?(ctx, e) } |
+//        { label, icon?, submenu: [items] } |
+//        { html, onClick?(e, ctx) }   ← custom row (e.g. color swatches)
+//        { divider: true }
 let openMenuEl = null;
 
 function closeMenus() {
@@ -600,6 +613,14 @@ function buildMenuInto(menuEl, items) {
       const d = document.createElement('div');
       d.className = 'ctx-divider';
       menuEl.appendChild(d);
+      continue;
+    }
+    if (item.html) {
+      const row = document.createElement('div');
+      row.innerHTML = item.html;
+      const el = row.children.length === 1 ? row.firstElementChild : row;
+      if (item.onClick) el.addEventListener('click', (e) => item.onClick(e, ctx));
+      menuEl.appendChild(el);
       continue;
     }
     if (item.submenu) {
@@ -618,9 +639,12 @@ function buildMenuInto(menuEl, items) {
     }
     const el = document.createElement('div');
     el.className = 'ctx-item' + (item.danger ? ' danger' : '') + (item.disabled ? ' disabled' : '');
-    el.innerHTML = (item.icon || '') + `<span>${item.label}</span>`;
+    // checked may be a function — evaluated fresh every time the menu opens
+    const checkedVal = typeof item.checked === 'function' ? item.checked(ctx) : item.checked;
+    el.innerHTML = (item.icon || '') + `<span>${item.label}</span>` +
+      (item.checked !== undefined ? `<span class="check" style="display:${checkedVal ? 'inline' : 'none'}">&#10003;</span>` : '');
     if (!item.disabled && item.action) {
-      el.addEventListener('click', () => { closeMenus(); item.action(ctx); });
+      el.addEventListener('click', (e) => { closeMenus(); item.action(ctx, e); });
     }
     menuEl.appendChild(el);
   }
@@ -654,6 +678,18 @@ function showContextMenu(e) {
 
   if (objEl) {
     const id = parseInt(objEl.dataset.id);
+    const obj = objects.find(o => o.id === id);
+    // A type may claim this right-click entirely (e.g. artboard corner
+    // fields open their own field menu instead of the object menu).
+    if (obj) {
+      const def = registry.typeDef(obj.type);
+      if (def && def.onContextMenu) {
+        try {
+          const custom = def.onContextMenu(obj, e, ctx);
+          if (custom && custom.length) { openMenu(custom, e.clientX, e.clientY); return; }
+        } catch (err) { console.error('onContextMenu hook failed', err); }
+      }
+    }
     if (!selectedIds.has(id)) selectObject(id);
     openMenu(buildObjectMenuItems(), e.clientX, e.clientY);
   } else {
@@ -661,23 +697,43 @@ function showContextMenu(e) {
   }
 }
 
+// Canvas menu composition. A tool contributes either:
+//   flat item:   { label, icon, order, action, checked?, dividerBefore? }
+//   submenu:     { submenu: 'Add Text', icon, order, dividerBefore?, items: [...] }
+// Submenu contributions with the same `submenu` label MERGE across tools
+// (the Annotate submenu is filled by shapes/markup/draw/eyedropper together):
+// parent icon comes from the lowest-order contributor, items concatenate
+// sorted by their own order. Everything sorts into one list by `order`.
+// Order bands (convention, keeps the original app's arrangement):
+//   10 images · 20 text · 30 flowchart · 40 artboards/export · 90 annotate
 function buildCanvasMenuItems() {
-  const contributions = [];
+  const flats = [];
+  const subs = new Map(); // label → { icon, order, dividerBefore, items: [] }
   for (const t of registry.allTools()) {
-    for (const item of (t.decl.canvasMenu || [])) {
-      contributions.push({ ...item, _tool: t.manifest.id });
+    for (const c of (t.decl.canvasMenu || [])) {
+      if (c.submenu) {
+        let s = subs.get(c.submenu);
+        if (!s) { s = { label: c.submenu, icon: c.icon, order: c.order || 0, dividerBefore: !!c.dividerBefore, items: [] }; subs.set(c.submenu, s); }
+        if ((c.order || 0) < s.order) { s.order = c.order || 0; if (c.icon) s.icon = c.icon; }
+        else if (!s.icon && c.icon) s.icon = c.icon; // adopt an icon regardless of load order
+        if (c.dividerBefore) s.dividerBefore = true;
+        s.items.push(...(c.items || []));
+      } else {
+        flats.push(c);
+      }
     }
   }
-  if (contributions.length === 0) {
-    return [{ label: 'No tools installed', disabled: true }];
+  const entries = [...flats];
+  for (const s of subs.values()) {
+    s.items.sort((a, b) => (a.order || 0) - (b.order || 0));
+    entries.push({ label: s.label, icon: s.icon, order: s.order, dividerBefore: s.dividerBefore, submenu: s.items });
   }
-  contributions.sort((a, b) => (a.group || '').localeCompare(b.group || '') || (a.order || 0) - (b.order || 0));
+  if (entries.length === 0) return [{ label: 'No tools installed', disabled: true }];
+  entries.sort((a, b) => (a.order || 0) - (b.order || 0));
   const items = [];
-  let lastGroup = null;
-  for (const c of contributions) {
-    if (lastGroup !== null && c.group !== lastGroup) items.push({ divider: true });
-    lastGroup = c.group;
-    items.push(c);
+  for (const e of entries) {
+    if (e.dividerBefore && items.length) items.push({ divider: true });
+    items.push(e);
   }
   return items;
 }
@@ -688,9 +744,25 @@ function buildObjectMenuItems() {
   const items = [];
 
   for (const type of typesInSelection) {
+    const typeSel = selObjs.filter(o => o.type === type);
+    let section = [];
+    // The type owner's section first…
     const def = registry.typeDef(type);
-    if (def && def.menu && def.menu.length) {
-      const section = typeof def.menu === 'function' ? def.menu(selObjs.filter(o => o.type === type), ctx) : def.menu;
+    if (def && def.menu) {
+      const owned = typeof def.menu === 'function' ? def.menu(typeSel, ctx) : def.menu;
+      section.push(...owned.map(i => ({ ...i, _mo: i.order || 0 })));
+    }
+    // …then contributions from OTHER tools (decl.objectMenus[type]) — this
+    // is how subfamily files (images.crop, images.nobg…) and remixes add
+    // items to an object type they don't own. Sorted by item `order`.
+    for (const t of registry.allTools()) {
+      const contrib = t.decl.objectMenus && t.decl.objectMenus[type];
+      if (!contrib) continue;
+      const resolved = typeof contrib === 'function' ? contrib(typeSel, ctx) : contrib;
+      section.push(...resolved.map(i => ({ ...i, _mo: i.order || 0 })));
+    }
+    if (section.length) {
+      section.sort((a, b) => a._mo - b._mo);
       items.push(...section);
       items.push({ divider: true });
     }
@@ -698,11 +770,22 @@ function buildObjectMenuItems() {
 
   // Core tail: align / arrange / z-order / delete (type-agnostic)
   items.push({
-    label: 'Align', submenu: [
+    label: 'Align',
+    icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="4" x2="4" y2="20"/><rect x="8" y="6" width="12" height="4" rx="1"/><rect x="8" y="14" width="8" height="4" rx="1"/></svg>',
+    submenu: [
+      {
+        html: `<label class="ctx-item align-respace-check" title="On: also redistribute into an even row/column. Off: only align edges, keeping current spacing."><input type="checkbox" ${respaceChecked ? 'checked' : ''}><span>Respace</span></label>`,
+        onClick(e) {
+          const cb = e.currentTarget ? e.currentTarget.querySelector('input') : null;
+          setTimeout(() => { if (cb) respaceChecked = cb.checked; }, 0);
+        },
+      },
+      { divider: true },
       { label: 'Align Left', action: () => alignSelected('left') },
       { label: 'Align Right', action: () => alignSelected('right') },
       { label: 'Align Top', action: () => alignSelected('top') },
       { label: 'Align Bottom', action: () => alignSelected('bottom') },
+      { label: 'Align Top + Bottom', action: () => alignTopBottom() },
       { divider: true },
       { label: 'Arrange in Grid', action: () => arrangeGrid() },
     ]
@@ -714,14 +797,76 @@ function buildObjectMenuItems() {
   return items;
 }
 
+// "Respace" (on by default): align tools also redistribute into an even
+// row/column. Off: only align the edge, leaving the other-axis position.
+let respaceChecked = true;
+
 function alignSelected(edge) {
   const sel = objects.filter(o => selectedIds.has(o.id));
   if (sel.length < 2) return;
   pushUndo();
-  if (edge === 'left') { const m = Math.min(...sel.map(o => o.x)); sel.forEach(o => o.x = m); }
-  if (edge === 'right') { const m = Math.max(...sel.map(o => o.x + o.w)); sel.forEach(o => o.x = m - o.w); }
-  if (edge === 'top') { const m = Math.min(...sel.map(o => o.y)); sel.forEach(o => o.y = m); }
-  if (edge === 'bottom') { const m = Math.max(...sel.map(o => o.y + o.h)); sel.forEach(o => o.y = m - o.h); }
+  const gap = 20;
+  if (edge === 'left' || edge === 'right') {
+    const targetX = edge === 'left'
+      ? Math.min(...sel.map(o => o.x))
+      : Math.max(...sel.map(o => o.x + o.w));
+    if (respaceChecked) {
+      const centerY = (Math.min(...sel.map(o => o.y)) + Math.max(...sel.map(o => o.y + o.h))) / 2;
+      const totalH = sel.reduce((s, o) => s + o.h, 0) + gap * (sel.length - 1);
+      sel.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      let curY = centerY - totalH / 2;
+      sel.forEach(o => {
+        o.x = edge === 'left' ? targetX : targetX - o.w;
+        o.y = curY; curY += o.h + gap;
+      });
+    } else {
+      sel.forEach(o => { o.x = edge === 'left' ? targetX : targetX - o.w; });
+    }
+  } else {
+    const targetY = edge === 'top'
+      ? Math.min(...sel.map(o => o.y))
+      : Math.max(...sel.map(o => o.y + o.h));
+    if (respaceChecked) {
+      const centerX = (Math.min(...sel.map(o => o.x)) + Math.max(...sel.map(o => o.x + o.w))) / 2;
+      const totalW = sel.reduce((s, o) => s + o.w, 0) + gap * (sel.length - 1);
+      sel.sort((a, b) => (a.x - b.x) || (a.y - b.y));
+      let curX = centerX - totalW / 2;
+      sel.forEach(o => {
+        o.y = edge === 'top' ? targetY : targetY - o.h;
+        o.x = curX; curX += o.w + gap;
+      });
+    } else {
+      sel.forEach(o => { o.y = edge === 'top' ? targetY : targetY - o.h; });
+    }
+  }
+  renderObjects(); markDirty();
+}
+
+// Align Top + Bottom: match every object's height to the tallest by scaling
+// PROPORTIONALLY (aspect preserved), align tops so bottoms line up too, and
+// (with Respace) re-flow into a centered row. Artboards are excluded (their
+// dimensions are ratio-locked).
+function alignTopBottom() {
+  const sel = objects.filter(o => selectedIds.has(o.id) && o.type !== 'artboard');
+  if (sel.length < 2) return;
+  pushUndo();
+  const gap = 20;
+  const H = Math.max(...sel.map(o => o.h));
+  const minY = Math.min(...sel.map(o => o.y));
+  const centerX = (Math.min(...sel.map(o => o.x)) + Math.max(...sel.map(o => o.x + o.w))) / 2;
+  sel.forEach(o => {
+    const scale = H / o.h;
+    o.w = Math.max(1, Math.round(o.w * scale));
+    o.h = H;
+  });
+  if (respaceChecked) {
+    sel.sort((a, b) => (a.x - b.x) || (a.y - b.y));
+    const totalW = sel.reduce((s, o) => s + o.w, 0) + gap * (sel.length - 1);
+    let curX = centerX - totalW / 2;
+    sel.forEach(o => { o.y = minY; o.x = curX; curX += o.w + gap; });
+  } else {
+    sel.forEach(o => { o.y = minY; });
+  }
   renderObjects(); markDirty();
 }
 
@@ -755,12 +900,17 @@ function reorderSelected(toFront) {
 }
 
 // ── Toolbar (generated) ────────────────────────────────────────────────
+// Layout mirrors the original Sketchbook rail exactly:
+//   home · divider · add-buttons · divider · modal tools · divider ·
+//   save · spacer · zoom in/out/reset
+// Tool entries declare `order` (bands: 10s adds, 30+ modal tools) and may
+// set `dividerBefore: true` to open a new band.
 const ICONS = {
-  home: '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  home: '<svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9"/><path d="M9 21V12h6v9"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   zoomIn: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
   zoomOut: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
-  zoomReset: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
+  zoomReset: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9"/><polyline points="3 3 3 8 8 8"/></svg>',
 };
 
 function makeToolbarButton(icon, title, onClick) {
@@ -772,40 +922,128 @@ function makeToolbarButton(icon, title, onClick) {
   return btn;
 }
 
+function toolbarDivider() {
+  const d = document.createElement('div');
+  d.className = 'toolbar-divider';
+  return d;
+}
+
 function buildToolbar() {
   toolbar.innerHTML = '';
   toolbar.appendChild(makeToolbarButton(ICONS.home, 'Home', async () => {
     if (dirty) await saveProject();
     window.api.goHome();
   }));
+  toolbar.appendChild(toolbarDivider());
 
-  const divider = document.createElement('div');
-  divider.className = 'toolbar-divider';
-  toolbar.appendChild(divider);
-
-  // Tool contributions: one button per toolbar entry, family order
-  const entries = [];
+  // Tool contributions. Families merge ACROSS tool files, mirroring the
+  // right-click menus: separate files (shapes/draw/eyedropper…) can all
+  // sit under one rail button ("Annotate") whose hover flyout lists them.
+  //   toolbar action entry:  { icon, title, order, dividerBefore?, action }
+  //   toolbar family entry:  { icon, title, order, dividerBefore?, items }
+  //                          — entries with the same `title` merge
+  //   modal tool in family:  tool: { family: 'Annotate', familyIcon,
+  //                          familyOrder, order (flyout position), … }
+  const standalone = [];
+  const families = new Map(); // name → { icon, order, dividerBefore, items }
+  function familyOf(name) {
+    let f = families.get(name);
+    if (!f) { f = { title: name, icon: null, order: Infinity, dividerBefore: false, items: [] }; families.set(name, f); }
+    return f;
+  }
   for (const t of registry.allTools()) {
-    for (const b of (t.decl.toolbar || [])) entries.push({ ...b, _toolId: t.manifest.id });
+    for (const b of (t.decl.toolbar || [])) {
+      if (b.items && b.items.length) {
+        const f = familyOf(b.title || t.manifest.name);
+        if ((b.order || 0) < f.order) { f.order = b.order || 0; if (b.icon) f.icon = b.icon; }
+        else if (!f.icon && b.icon) f.icon = b.icon; // adopt an icon regardless of load order
+        if (b.dividerBefore) f.dividerBefore = true;
+        f.items.push(...b.items);
+      } else {
+        standalone.push({ ...b, _toolId: t.manifest.id });
+      }
+    }
     if (t.decl.tool) {
-      entries.push({
-        icon: t.decl.tool.icon,
-        title: t.decl.tool.title || t.manifest.name,
-        order: t.decl.tool.order || 0,
-        modal: true,
-        _toolId: t.manifest.id,
-      });
+      const tt = t.decl.tool;
+      if (tt.family) {
+        const f = familyOf(tt.family);
+        const fOrder = tt.familyOrder !== undefined ? tt.familyOrder : (tt.order || 0);
+        if (fOrder < f.order) { f.order = fOrder; if (tt.familyIcon || tt.icon) f.icon = tt.familyIcon || tt.icon; }
+        else if (!f.icon && (tt.familyIcon || tt.icon)) f.icon = tt.familyIcon || tt.icon;
+        if (tt.dividerBefore) f.dividerBefore = true;
+        f.items.push({
+          label: tt.title || t.manifest.name,
+          icon: tt.flyoutIcon || '',
+          order: tt.order || 0,
+          modal: true,
+          _toolId: t.manifest.id,
+        });
+      } else {
+        standalone.push({
+          icon: tt.icon,
+          title: tt.title || t.manifest.name,
+          order: tt.order || 0,
+          dividerBefore: !!tt.dividerBefore,
+          modal: true,
+          _toolId: t.manifest.id,
+        });
+      }
     }
   }
+  const entries = [...standalone];
+  for (const f of families.values()) {
+    f.items.sort((a, b) => (a.order || 0) - (b.order || 0));
+    entries.push({ icon: f.icon, title: f.title, order: f.order === Infinity ? 0 : f.order, dividerBefore: f.dividerBefore, items: f.items, family: true });
+  }
   entries.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  let placedAny = false;
   for (const entry of entries) {
-    const btn = makeToolbarButton(entry.icon || ICONS.save, entry.title || entry._toolId, () => {
+    if (entry.dividerBefore && placedAny) toolbar.appendChild(toolbarDivider());
+    const btn = makeToolbarButton(entry.icon || ICONS.save, entry.items ? '' : (entry.title || entry._toolId), (e) => {
       if (entry.modal) setTool(activeToolId === entry._toolId ? null : entry._toolId);
-      else entry.action(ctx);
+      else if (entry.action) entry.action(ctx, e);
     });
     if (entry.modal) btn.dataset.toolId = entry._toolId;
-    toolbar.appendChild(btn);
+
+    // Family flyout: hovering the button reveals its subfamily entries
+    // (Text → Label/Title/…, Annotate → Rectangle/Pen/Eyedropper),
+    // mirroring the right-click menu's family → subfamily hierarchy.
+    if (entry.items && entry.items.length) {
+      const wrap = document.createElement('div');
+      wrap.className = 'tool-wrap';
+      if (entry.title) btn.removeAttribute('title'); // flyout labels it
+      wrap.appendChild(btn);
+      const flyout = document.createElement('div');
+      flyout.className = 'tool-flyout';
+      if (entry.title) {
+        const head = document.createElement('div');
+        head.className = 'tool-flyout-title';
+        head.textContent = entry.title;
+        flyout.appendChild(head);
+      }
+      for (const item of entry.items) {
+        const row = document.createElement('div');
+        row.className = 'ctx-item';
+        row.innerHTML = (item.icon || '') + `<span>${item.label}</span>`;
+        if (item.modal) {
+          row.dataset.toolId = item._toolId;
+          row.addEventListener('click', () => setTool(activeToolId === item._toolId ? null : item._toolId));
+        } else {
+          row.addEventListener('click', (e) => { item.action(ctx, e); });
+        }
+        flyout.appendChild(row);
+      }
+      wrap.appendChild(flyout);
+      toolbar.appendChild(wrap);
+    } else {
+      toolbar.appendChild(btn);
+    }
+    placedAny = true;
   }
+
+  toolbar.appendChild(toolbarDivider());
+  toolbar.appendChild(makeToolbarButton(ICONS.save, 'Save (Ctrl+S)', () => { dirty = true; saveProject(); }));
 
   const spacer = document.createElement('div');
   spacer.className = 'toolbar-spacer';
@@ -814,12 +1052,20 @@ function buildToolbar() {
   toolbar.appendChild(makeToolbarButton(ICONS.zoomIn, 'Zoom In', () => zoomAt(1.2)));
   toolbar.appendChild(makeToolbarButton(ICONS.zoomOut, 'Zoom Out', () => zoomAt(1 / 1.2)));
   toolbar.appendChild(makeToolbarButton(ICONS.zoomReset, 'Reset View', () => { zoom = 1; panX = 0; panY = 0; applyTransform(); }));
-  toolbar.appendChild(makeToolbarButton(ICONS.save, 'Save (Ctrl+S)', () => { dirty = true; saveProject(); }));
 }
 
 function updateToolbarActive() {
   toolbar.querySelectorAll('.tool-btn[data-tool-id]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.toolId === activeToolId);
+  });
+  // Flyout rows for modal tools + their family button light up together
+  toolbar.querySelectorAll('.tool-flyout [data-tool-id]').forEach(row => {
+    row.classList.toggle('active', row.dataset.toolId === activeToolId);
+  });
+  toolbar.querySelectorAll('.tool-wrap').forEach(wrap => {
+    const anyActive = !!wrap.querySelector(`.tool-flyout [data-tool-id="${activeToolId}"]`);
+    const btn = wrap.querySelector('.tool-btn');
+    if (btn && !btn.dataset.toolId) btn.classList.toggle('active', anyActive);
   });
 }
 
@@ -904,7 +1150,16 @@ async function copySelected() {
 
 async function pasteClipboard() {
   const payload = await window.api.getClipboard();
-  if (!payload || !payload.objects || !payload.objects.length) return;
+  if (!payload || !payload.objects || !payload.objects.length) {
+    // No object clipboard — offer the paste to tools (e.g. images pastes
+    // a bitmap from the native clipboard, like the original app).
+    for (const t of registry.allTools()) {
+      if (t.decl.onPasteEmpty) {
+        try { if (await t.decl.onPasteEmpty(ctx)) return; } catch (err) { console.error(err); }
+      }
+    }
+    return;
+  }
   pushUndo();
   const pasted = [];
   for (const src of payload.objects) {
@@ -935,6 +1190,13 @@ const ctx = {
   get selectedIds() { return selectedIds; },
   get project() { return projectName; },
   getZoom: () => zoom,
+  getActiveTool: () => activeToolId,
+  // Small persisted per-tool flags, saved inside canvasState.toolState.
+  // Namespace your keys with your tool id (e.g. 'flowchart.flipped').
+  state: {
+    get: (key) => toolState[key],
+    set: (key, value) => { toolState[key] = value; markDirty(); },
+  },
 
   // object ops
   createObject(props) {
@@ -972,6 +1234,18 @@ const ctx = {
   worldEl: world,
   viewportEl: viewport,
 
+  // rendering services
+  // Draw any object onto a 2d canvas via its type's exportDraw
+  // (t = { x, y, scaleX, scaleY } — the object's target rect/scale).
+  exportObject(c2d, obj, t) {
+    const def = registry.typeDef(obj.type);
+    if (def && def.exportDraw) {
+      try { def.exportDraw(c2d, obj, t, ctx); } catch (err) { console.error(`exportDraw failed for "${obj.type}"`, err); }
+      return true;
+    }
+    return false;
+  },
+
   // io (mediated main-process access — tools never see window.api)
   io: {
     importImages: (opts) => window.api.importImages(projectName, opts),
@@ -979,6 +1253,8 @@ const ctx = {
     pasteImage: () => window.api.pasteImage(projectName),
     removeWhiteBg: (assetPath) => window.api.removeWhiteBg(assetPath),
     importExternalAsset: (srcPath) => window.api.importExternalAsset(projectName, srcPath),
+    getFilePath: (file) => window.api.getFilePath(file), // real path of a dropped File
+
     exportJpeg: (filename, dataUrl) => window.api.exportArtboard(filename, dataUrl),
     pickFolder: (title) => window.api.pickFolder(title),
     saveJpegToFolder: (folder, filename, dataUrl) => window.api.saveArtboardToFolder(folder, filename, dataUrl),
@@ -1006,6 +1282,13 @@ async function loadTools() {
         style.dataset.tool = mod.manifest.id;
         style.textContent = decl.css;
         document.head.appendChild(style);
+      }
+      // Raw pointer handlers: interactions that must run even in pointer
+      // mode (e.g. flowchart connection anchors pre-empting object move).
+      for (const p of (decl.pointer || [])) {
+        registerPointerHandler(p.priority || 250, (e) => {
+          try { return !!p.handler(e, ctx); } catch (err) { console.error(`pointer handler (${mod.manifest.id})`, err); return false; }
+        });
       }
       registry.add(mod.manifest, decl);
     } catch (err) {
@@ -1036,6 +1319,12 @@ async function init() {
       panX = Number(data.canvasState.panX) || 0;
       panY = Number(data.canvasState.panY) || 0;
       zoom = Number(data.canvasState.zoom) || 1;
+      toolState = (data.canvasState.toolState && typeof data.canvasState.toolState === 'object')
+        ? data.canvasState.toolState : {};
+      // Legacy: the original app stored flowchartFlipped at the top level
+      if (data.canvasState.flowchartFlipped !== undefined && toolState.flowchartFlipped === undefined) {
+        toolState.flowchartFlipped = !!data.canvasState.flowchartFlipped;
+      }
     }
   } else {
     showToast('Could not load project');

@@ -1,6 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════
    BLANK-SLATE TOOL FILE — copy me to start a new tool.
 
+   NOTE: THIS FILE DOES NOT LOAD. Filenames starting with "_" are skipped
+   by the app on purpose — this is a blueprint. Copy it to a real name
+   (e.g. confetti.js) and it comes alive on next launch.
+
    WHAT THIS IS: one self-contained plugin for the Blank-Slate canvas app.
    The app scans tools/*.js at startup and auto-generates this tool's
    toolbar button, right-click menu entries, and keyboard shortcut from
@@ -117,11 +121,12 @@ export function register(ctx) {
     ],
 
     // Right-click on empty canvas → "Add Block" where the cursor is.
+    // (Use { submenu: 'Name', icon, order, items: [...] } to join or create
+    // a submenu — same-name submenus merge across tools. See AGENTS.md.)
     canvasMenu: [
       {
         label: 'Add Block',
-        group: 'add',
-        order: 90,
+        order: 50,
         action(ctx) { addBlock(ctx.contextWorld.x, ctx.contextWorld.y); },
       },
     ],
