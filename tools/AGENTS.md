@@ -150,6 +150,14 @@ export function register(ctx) {
     // to return true wins; the type owner is asked first).
     onObjectDoubleClick(obj, e, ctx) { return false; },
 
+    // Decorator hooks — embellish objects you don't own. onObjectRender
+    // runs after every object's render (e.g. apply a CSS filter to the
+    // <img> inside); the export pair wraps every exportDraw (e.g. set
+    // c2d.filter before an image draws and clear it after).
+    onObjectRender(obj, el, ctx) {},
+    onBeforeObjectExport(c2d, obj, t, ctx) {},
+    onAfterObjectExport(c2d, obj, t, ctx) {},
+
     // Raw pointer handlers — run on viewport mousedown even in pointer
     // mode, BEFORE selection/move (priority 250 slots between the active
     // tool at 200 and resize at 300). Return true to consume the event.

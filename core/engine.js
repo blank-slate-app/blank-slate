@@ -230,6 +230,14 @@ function renderObjects() {
       renderPlaceholder(obj, el, `${obj.type} — tool not installed`);
     }
 
+    // Decorator hooks: other tools may embellish a rendered object they
+    // don't own (e.g. images.filters applies the filter chain to images).
+    for (const t of registry.allTools()) {
+      if (t.decl.onObjectRender) {
+        try { t.decl.onObjectRender(obj, el, ctx); } catch (err) { console.error('onObjectRender hook failed', err); }
+      }
+    }
+
     for (const pos of ['tl', 'tr', 'bl', 'br']) {
       const h = document.createElement('div');
       h.className = `resize-handle rh-${pos}`;
@@ -1237,13 +1245,23 @@ const ctx = {
   // rendering services
   // Draw any object onto a 2d canvas via its type's exportDraw
   // (t = { x, y, scaleX, scaleY } — the object's target rect/scale).
+  // Decorator tools may wrap the draw via onBeforeObjectExport /
+  // onAfterObjectExport (e.g. images.filters sets c2d.filter around images).
   exportObject(c2d, obj, t) {
     const def = registry.typeDef(obj.type);
-    if (def && def.exportDraw) {
-      try { def.exportDraw(c2d, obj, t, ctx); } catch (err) { console.error(`exportDraw failed for "${obj.type}"`, err); }
-      return true;
+    if (!def || !def.exportDraw) return false;
+    for (const tl of registry.allTools()) {
+      if (tl.decl.onBeforeObjectExport) {
+        try { tl.decl.onBeforeObjectExport(c2d, obj, t, ctx); } catch (err) { console.error(err); }
+      }
     }
-    return false;
+    try { def.exportDraw(c2d, obj, t, ctx); } catch (err) { console.error(`exportDraw failed for "${obj.type}"`, err); }
+    for (const tl of registry.allTools()) {
+      if (tl.decl.onAfterObjectExport) {
+        try { tl.decl.onAfterObjectExport(c2d, obj, t, ctx); } catch (err) { console.error(err); }
+      }
+    }
+    return true;
   },
 
   // io (mediated main-process access — tools never see window.api)

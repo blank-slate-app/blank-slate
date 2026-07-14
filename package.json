@@ -1,6 +1,6 @@
 {
   "name": "blank-slate",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Blank-Slate.app — a moodboard/deck canvas where every tool is a single remixable file",
   "main": "main.js",
   "scripts": {

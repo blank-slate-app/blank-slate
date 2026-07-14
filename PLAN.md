@@ -18,15 +18,17 @@ The authoring contract lives in `tools/AGENTS.md` — that file and
 - [ ] **S1 — Kernel proof**: launch app, create project, verify pan/zoom/
       save/undo and the _template Block tool end to end (add, move, resize,
       snap, recolor, delete, undo, reload, placeholder when file removed).
-- [ ] **S2 — Port the 8 baseline tools** from the old canvas.html, one commit
-      each, easiest → hardest: `draw` → `shapes` → `eyedropper` → `markup` →
-      `text` (incl. shared font picker service decision) → `flowchart` →
-      `images` (crop system) → `artboards` (corner fields, renumber, export).
-      Each port: live copy in `tools/`, pristine copy in `baseline/`,
-      `authors: ['santi']`.
-- [ ] **S3 — Export shell**: artboards tool needs per-type export renderers;
-      add `exportDraw(c2d, obj, transform, ctx)` to the type contract and an
-      export orchestration ctx service when `artboards` is ported.
+- [x] **S2 — Port the baseline tools** — COMPLETE. Ten tool files live, each
+      with a pristine `baseline/` twin: `draw`, `shapes`, `eyedropper`,
+      `markup`, `text`, `flowchart`, `images` (family root: crop system,
+      white-bg, drop/paste), `images.hires` (add-fork), `images.filters`
+      (operate-subfamily: blur/grain/fade stacks + sliders panel),
+      `artboards` (corner fields, drag-swap, renumber, Match Last, export).
+      Toolbar/menu families merge across files (Annotate = 4 files, one
+      button); UI is pixel-faithful to the original Sketchbook.
+- [x] **S3 — Export shell** — delivered via `ctx.exportObject` + per-type
+      `exportDraw` + decorator hooks (onBeforeObjectExport/After); the
+      artboard exporter and the eyedropper sampler both consume it.
 - [ ] **S4 — Ecosystem substrate**: object tool-stamps, project.json `tools`
       dependency manifest, publish (bundle tool files + rendered previews
       into the project folder), install-on-open prompts, Fork action with
