@@ -1,5 +1,8 @@
 node_modules/
-projects/
-blank-slate.bundle
+_projects/
+_decks/
+cache/
+community-repo/
+dist/
 .DS_Store
 Thumbs.db

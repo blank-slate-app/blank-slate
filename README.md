@@ -2,7 +2,7 @@
 
 A desktop canvas app for moodboards and pitch decks where **every tool is a
 single file you can read, edit, remix, or write from scratch** — by hand, or
-by pointing an AI agent at the `tools/` folder.
+by pointing an AI agent at the `_tools/` folder.
 
 ## Run it
 
@@ -13,41 +13,33 @@ npm start
 
 ## The idea
 
-- `core/engine.js` is the kernel: canvas, selection, undo, save, pan/zoom,
+- `js/engine.js` is the kernel: canvas, selection, undo, save, pan/zoom,
   and the loader that turns tool files into toolbar buttons, menus, and
   shortcuts automatically.
-- `tools/*.js` are the tools. One file each, fully self-contained. Edit one,
+- `_tools/*.js` are the tools. One file each, fully self-contained. Edit one,
   relaunch, see it. Break one, the app still boots and tells you why.
-  Start with `tools/AGENTS.md` (the contract) and `tools/_template.js`
+  Start with `_tools/AGENTS.md` (the contract) and `_tools/_template.js`
   (copy-me skeleton).
-- `baseline/` holds pristine copies of the shipped tools. Deleted baseline
+- `_baseline/` holds pristine copies of the shipped tools. Deleted baseline
   tools auto-revive at startup; edited ones are yours until you revert.
-- Projects are folders in `projects/` (`project.json` + `assets/`), same
-  format as the original CanvasApp.
+- Projects are folders in `_projects/` (`project.json` + `assets/`), same
+  format as the original CanvasApp. (The `_` folders are yours; they sort
+  to the top. `js/`, `html/`, `bat/` are the app's code.)
 
-Rebuild roadmap: `PLAN.md`. Product vision + design record:
+Docs: `ARCHITECTURE.md` (whole-app map: kernel, IPC, invariants) ·
+`_tools/AGENTS.md` (tool-author contract) · `COMMUNITY-SETUP.md` (the
+shared GitHub catalog the Decks/Tools panels read from).
+Product vision + design record:
 `../_TECH Sketchbook/CanvasApp/REBUILD-PLAN.md`.
 
-## Git & GitHub (once)
+## Scripts (in `bat/` — all safe to run by double-click)
 
-Version history from the build sessions lives in `blank-slate.bundle`
-(a portable git repository file — refreshed after every working-session
-commit). To go native on this machine, from this folder:
-
-```
-git clone blank-slate.bundle .tmp-clone
-move .tmp-clone\.git .git        (mac/linux: mv .tmp-clone/.git .git)
-rmdir /s /q .tmp-clone           (mac/linux: rm -rf .tmp-clone)
-git checkout main -- .           (no-op sanity check; files already match)
-```
-
-Or skip the history and start fresh (recommended — keeps personal email
-out of public history): `git init -b main && git add -A && git commit -m
-"S0: scaffold"`. Then:
-
-```
-git remote add origin https://github.com/blank-slate-app/blank-slate.git
-git push -u origin main
-```
-
-Home: https://github.com/blank-slate-app/blank-slate
+- `bat\launch.bat` — run the app in dev (npm install on first run, then Electron).
+- `bat\build.bat` — package the distributable: `dist/Blank-Slate-<version>-win.zip`.
+  Users unzip anywhere and run `Blank-Slate.exe`; no Node needed.
+- `bat\push.bat` — commit + patch-version-bump + push the APP SOURCE to
+  https://github.com/blank-slate-app/blank-slate.
+- `bat\push-community.bat` — stage `community-repo/` from your local `_decks/`
+  library (via `js/publish-community.js`) and push the COMMUNITY CATALOG to
+  https://github.com/blank-slate-app/community. The in-app Decks/Tools
+  panels update within a minute.

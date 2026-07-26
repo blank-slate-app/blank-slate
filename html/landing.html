@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blank-Slate</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════════════
+     LANDING — FRC brand system. Same tokens as canvas.html: #111 page
+     with the 32px peach drafting grid, one floating translucent panel
+     (hairline + double shadow, 10px radius), Cormorant display type,
+     Inter body, JetBrains Mono micro-labels, peach accents.
+     ═══════════════════════════════════════════════════════════════════ */
+  :root {
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'Inter', 'Helvetica Neue', sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, Menlo, Consolas, monospace;
+    --peach: #F0C4A0;
+    --frc-line: #29251f;
+    --frc-peach-25: #F0C9B4;
+    --frc-dim: rgba(240, 240, 240, 0.5);
+    --frc-faint: rgba(240, 240, 240, 0.35);
+    --frc-canvas-bg: rgba(17, 17, 17, 0.6);
+    --frc-canvas-shadow: 0 10px 44px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  ::selection { background: rgba(240, 196, 160, 0.3); }
+
+  body {
+    /* FRC page layer: #111 with the faint peach 32px drafting grid */
+    background-color: #111111;
+    background-image:
+      linear-gradient(rgba(240, 201, 180, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240, 201, 180, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: #e0e0e0;
+    font-family: var(--font-sans);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Floating translucent panel — the page grid reads through it, exactly
+     like the canvas zone in the editor */
+  .container {
+    width: 560px;
+    max-height: 84vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--frc-canvas-bg);
+    border: 1px solid var(--frc-line);
+    border-radius: 10px;
+    box-shadow: var(--frc-canvas-shadow);
+    padding: 40px 44px 32px;
+  }
+
+  .kicker {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--frc-faint);
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-family: var(--font-serif);
+    font-size: 46px;
+    font-weight: 500;
+    line-height: 1;
+    color: #f5f5f5;
+    letter-spacing: 0.01em;
+    margin-bottom: 10px;
+  }
+
+  .subtitle {
+    color: var(--frc-dim);
+    font-size: 13px;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    margin-bottom: 34px;
+  }
+
+  .btn {
+    background: var(--peach);
+    color: #1a1a1a;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn:hover { background: var(--frc-peach-25); }
+
+  .create-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+  }
+
+  .create-row input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--frc-line);
+    color: #e0e0e0;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .create-row input:focus { border-color: var(--peach); }
+
+  .create-row input::placeholder { color: #555; }
+
+  .divider {
+    height: 1px;
+    background: var(--frc-line);
+    margin-bottom: 20px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 10px;
+  }
+
+  .project-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .project-list::-webkit-scrollbar { width: 6px; }
+  .project-list::-webkit-scrollbar-track { background: transparent; }
+  .project-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+  /* Rows sit directly on the panel — hairline separators, no bubbles */
+  .project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 12px;
+    margin: 0 -12px;
+    border-bottom: 1px solid var(--frc-line);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .project-item:last-child { border-bottom: none; }
+
+  .project-item:hover { background: rgba(240, 196, 160, 0.05); }
+
+  .project-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #e8e8e8;
+  }
+
+  .project-date {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    color: #555;
+    margin-top: 3px;
+  }
+
+  .project-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .project-rename,
+  .project-shortcut,
+  .project-delete {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .project-rename:hover,
+  .project-shortcut:hover {
+    color: var(--peach);
+    background: rgba(240, 196, 160, 0.1);
+  }
+
+  .project-name input {
+    background: #111;
+    border: 1px solid var(--peach);
+    border-radius: 4px;
+    color: #e0e0e0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 2px 6px;
+    outline: none;
+    width: 240px;
+  }
+
+  .project-delete:hover {
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.1);
+  }
+
+  .empty-state {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 17px;
+    color: #4a4a4a;
+    text-align: center;
+    padding: 40px 0;
+  }
+
+  .panel-foot {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #4a4a4a;
+    border-top: 1px solid var(--frc-line);
+    padding-top: 14px;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="kicker">Forma Rosa Creative</div>
+  <h1>Blank-Slate</h1>
+  <p class="subtitle">Drop images, add text, build boards. Every tool is a file you can remix.</p>
+
+  <div class="create-row">
+    <input type="text" id="projectNameInput" placeholder="New project name..."
+           maxlength="60" autofocus>
+    <button class="btn" id="createBtn">Create</button>
+  </div>
+
+  <div class="divider"></div>
+  <div class="section-label">Recent Projects</div>
+
+  <div class="project-list" id="projectList">
+    <div class="empty-state">No projects yet</div>
+  </div>
+
+  <div class="panel-foot">
+    <span>Every tool is a file</span>
+    <span>Blank-Slate</span>
+  </div>
+</div>
+
+<script>
+  const input = document.getElementById('projectNameInput');
+  const createBtn = document.getElementById('createBtn');
+  const projectList = document.getElementById('projectList');
+
+  async function loadProjects() {
+    const projects = await window.api.getProjects();
+    if (projects.length === 0) {
+      projectList.innerHTML = '<div class="empty-state">No projects yet</div>';
+      return;
+    }
+
+    projectList.innerHTML = projects.map(p => {
+      const date = p.modified ? new Date(p.modified).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }) : '';
+      return `
+        <div class="project-item" data-name="${p.name}">
+          <div>
+            <div class="project-name">${p.name}</div>
+            <div class="project-date">${date}</div>
+          </div>
+          <div class="project-actions">
+            <button class="project-rename" data-rename="${p.name}" title="Rename project">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+            </button>
+            <button class="project-shortcut" data-shortcut="${p.name}" title="Save desktop shortcut (.bat)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </button>
+            <button class="project-delete" data-delete="${p.name}" title="Delete project">&times;</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Open project on click
+    projectList.querySelectorAll('.project-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.project-delete')) return;
+        if (e.target.closest('.project-shortcut')) return;
+        if (e.target.closest('.project-rename')) return;
+        if (e.target.closest('input')) return; // renaming in place
+        window.api.openCanvas(el.dataset.name);
+      });
+    });
+
+    // Rename in place: pencil swaps the name for an input; Enter/blur
+    // commits (folder rename + asset-path remap in main), Esc cancels.
+    projectList.querySelectorAll('.project-rename').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const oldName = el.dataset.rename;
+        const item = el.closest('.project-item');
+        const nameDiv = item.querySelector('.project-name');
+        if (nameDiv.querySelector('input')) return; // already editing
+        const inputEl = document.createElement('input');
+        inputEl.value = oldName;
+        inputEl.maxLength = 60;
+        nameDiv.textContent = '';
+        nameDiv.appendChild(inputEl);
+        inputEl.focus();
+        inputEl.select();
+        let done = false;
+        async function commit() {
+          if (done) return; done = true;
+          const newName = inputEl.value.trim();
+          if (!newName || newName === oldName) { loadProjects(); return; }
+          const result = await window.api.renameProject(oldName, newName);
+          if (result && result.error) alert(result.error);
+          loadProjects();
+        }
+        inputEl.addEventListener('keydown', (ev) => {
+          ev.stopPropagation();
+          if (ev.key === 'Enter') commit();
+          if (ev.key === 'Escape') { done = true; loadProjects(); }
+        });
+        inputEl.addEventListener('blur', commit);
+        inputEl.addEventListener('click', (ev) => ev.stopPropagation());
+      });
+    });
+
+    // Create shortcut (.bat launcher)
+    projectList.querySelectorAll('.project-shortcut').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const name = el.dataset.shortcut;
+        const result = await window.api.createShortcut(name);
+        if (result && result.success) {
+          const btn = el;
+          const prevHTML = btn.innerHTML;
+          btn.innerHTML = '&#10003;';
+          setTimeout(() => { btn.innerHTML = prevHTML; }, 1500);
+        } else if (result && result.error) {
+          alert('Could not save shortcut: ' + result.error);
+        }
+      });
+    });
+
+    // Delete project
+    projectList.querySelectorAll('.project-delete').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const name = el.dataset.delete;
+        if (confirm(`Delete "${name}"? This cannot be undone.`)) {
+          await window.api.deleteProject(name);
+          loadProjects();
+        }
+      });
+    });
+  }
+
+  async function createProject() {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+
+    const result = await window.api.createProject(name);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+    window.api.openCanvas(result.name);
+  }
+
+  createBtn.addEventListener('click', createProject);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') createProject();
+  });
+
+  loadProjects();
+</script>
+
+</body>
+</html>
