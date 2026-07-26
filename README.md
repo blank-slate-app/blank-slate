@@ -4,7 +4,19 @@ A desktop canvas app for moodboards and pitch decks where **every tool is a
 single file you can read, edit, remix, or write from scratch** — by hand, or
 by pointing an AI agent at the `_tools/` folder.
 
-## Run it
+## Download (just want to use it?)
+
+Grab the latest `Blank-Slate-<version>-win.zip` from
+**[Releases](https://github.com/blank-slate-app/blank-slate/releases/latest)**,
+unzip it anywhere (e.g. `Documents\Blank-Slate`), and run `Blank-Slate.exe`.
+Windows SmartScreen may warn because the app isn't code-signed yet — click
+**More info → Run anyway**. On first run the app creates `_projects/`,
+`_tools/`, `_baseline/` and `_decks/` next to the exe: everything is plain,
+editable files. Community decks and tools: the shared library lives at
+[blank-slate-app/community](https://github.com/blank-slate-app/community)
+and appears live in the app's Decks/Tools panels.
+
+## Run it from source (developers)
 
 ```
 npm install    # first time only — run on THIS machine (native deps: electron, sharp)
@@ -39,7 +51,8 @@ Product vision + design record:
   Users unzip anywhere and run `Blank-Slate.exe`; no Node needed.
 - `bat\push.bat` — commit + patch-version-bump + push the APP SOURCE to
   https://github.com/blank-slate-app/blank-slate.
-- `bat\push-community.bat` — stage `community-repo/` from your local `_decks/`
-  library (via `js/publish-community.js`) and push the COMMUNITY CATALOG to
+- `bat\push-community.bat` — stage the sibling `_TECH Blank Slate Community`
+  folder from your local `_decks/` library (via `js/publish-community.js`)
+  and push the COMMUNITY CATALOG to
   https://github.com/blank-slate-app/community. The in-app Decks/Tools
   panels update within a minute.

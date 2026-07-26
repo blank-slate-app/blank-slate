@@ -1,84 +1,43 @@
-# Community repo setup (the BlenderKit loop)
+# Community ops (maintainer notes — Forma Rosa Creative)
 
-The Decks and Tools panels are a LIVE VIEW of one shared GitHub repo.
-Every user's app fetches the same catalog; Download/Install pulls straight
-from GitHub into their project. Approval = you merging their pull request.
+The Decks and Tools panels in every copy of the app are a LIVE VIEW of one
+shared GitHub repo. Download/Install pulls straight from GitHub into the
+user's project. Approval = you merging their pull request.
 
-The app currently points at:
+    App points at: https://github.com/blank-slate-app/community  (branch: main)
+    (Change COMMUNITY_REPO at the top of the community section in js/main.js
+    if the repo ever moves.)
 
-    https://github.com/blank-slate-app/community   (branch: main)
+## The two-folder split
 
-(Change `COMMUNITY_REPO` at the top of the community section in
-`js/main.js` if you name it differently.)
+- **This folder** (`_TECH blank-slate app`) — the app source AND your own
+  practice as the first user. Your `_projects/` and `_decks/` are gitignored;
+  `bat\push.bat` publishes only the app code.
+- **`../_TECH Blank Slate Community`** — the local working copy of the
+  community repo: curated docs (README, CONTRIBUTING, AGENTS.md), `decks/`,
+  `community-tools/`, `index.json`. This is the "1st release community
+  package" — what every user's panels read.
 
-## Repo structure
+## Publishing your content (the maintainer loop)
 
-```
-community/
-├── index.json                  ← THE CATALOG (the app fetches this)
-├── decks/
-│   └── <Title - Author>/       ← exactly what "Publish Deck…" produces
-│       ├── manifest.json
-│       ├── project.json
-│       ├── <Title - Author>.pdf   ← the card preview: users flip through
-│       │                            every page in the panel before
-│       │                            downloading (fetched once, cached)
-│       ├── images/…
-│       └── tools/…             (only the deck's unique tools)
-└── community-tools/
-    └── <toolname>.js           ← standalone tool submissions
-```
+1. In the app: right-click canvas → **Publish Deck…** → a tidy deck folder
+   lands in your `_decks/` library (and your own panel immediately).
+2. Run `bat\push-community.bat`. It stages the Community folder
+   (`js/publish-community.js` copies published decks in and regenerates
+   `index.json` from disk, preserving download counts — it never touches
+   the curated docs), then commits and pushes it to GitHub.
+3. Every app's panels pick it up within a minute (or on window focus).
 
-## index.json (starter — copy this in as the first commit)
+## Handling other people's submissions
 
-```json
-{
-  "decks": [
-    {
-      "dir": "My First Deck - Forma Rosa Creative",
-      "title": "My First Deck",
-      "author": "Forma Rosa Creative",
-      "pages": 6,
-      "images": 12,
-      "downloads": 0,
-      "files": [
-        "manifest.json",
-        "project.json",
-        "My First Deck - Forma Rosa Creative.pdf",
-        "images/example.jpg",
-        "tools/mytool.js"
-      ]
-    }
-  ],
-  "tools": [
-    {
-      "file": "community-tools/sticker.js",
-      "name": "Sticker",
-      "author": "someone",
-      "description": "Drop emoji stickers on the canvas",
-      "downloads": 0
-    }
-  ]
-}
-```
-
-Notes:
-- `files` lists every file inside the deck's folder (the app downloads
-  them individually over raw.githubusercontent.com — no server needed).
-- `downloads` is hand-maintained (or 0) until the GitHub Action exists.
-
-## The contribution flow
-
-1. User runs **Publish Deck…** → tidy folder appears in their local
-   `decks/` library (and their own panel immediately).
-2. They open a PR adding that folder under `decks/` + an `index.json`
-   entry. Tool submissions add a file under `community-tools/` + an entry.
-3. You review — the PR diff shows any tool code in full — and merge.
-4. Every app's panel picks it up within a minute (or on window focus).
+They follow `CONTRIBUTING.md` in the community repo: PR with a deck folder
+under `decks/` (or a `.js` under `community-tools/`) + an `index.json`
+entry. You read the diff — tool code is one readable file by design —
+and merge. After merging remote PRs, `git pull` in the Community folder
+before your next push-community run so the folder stays in sync.
 
 ## Later (automation, all still free)
 
-- A GitHub Action on merge: regenerate `index.json` automatically from the
-  folders (no hand-editing), zip each deck into a Release asset, and read
-  real `download_count`s back into the catalog.
+- GitHub Action on merge: regenerate `index.json` from the folders,
+  zip each deck into a Release asset, read real `download_count`s back.
 - In-app "Submit to community" button that opens the pre-filled PR page.

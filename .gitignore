@@ -2,7 +2,6 @@ node_modules/
 _projects/
 _decks/
 cache/
-community-repo/
 dist/
 .DS_Store
 Thumbs.db

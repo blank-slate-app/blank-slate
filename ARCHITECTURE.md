@@ -33,7 +33,9 @@ blank-slate app/
 │   ├── preload.js     contextBridge → window.api (the ONLY IPC gateway)
 │   ├── engine.js      THE KERNEL (ES module, ~1450 lines) — loaded by
 │   │                  canvas.html as <script type="module" src="../js/engine.js">
-│   └── publish-community.js  maintainer script: stage community-repo/ from _decks/
+│   └── publish-community.js  maintainer script: stage the sibling
+│                             "_TECH Blank Slate Community" folder (the
+│                             local copy of the community repo) from _decks/
 ├── html/              landing.html (project picker) · canvas.html (renderer
 │                      shell: FRC chrome CSS + layout divs; no inline JS)
 ├── cache/             community fetch cache (preview PDFs) — safe to delete

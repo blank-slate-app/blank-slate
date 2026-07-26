@@ -1,19 +1,24 @@
-// Stage the community repo from the local _decks/ library.
+// Stage the community package from the local _decks/ library.
 // Run via bat\push-community.bat (or, from the app root: node js/publish-community.js).
 //
+// The community package is its OWN project folder — the sibling
+// "_TECH Blank Slate Community" — which is the local working copy of
+// github.com/blank-slate-app/community (README, CONTRIBUTING, AGENTS.md
+// live there and are curated by hand; this script never touches them).
+//
 // - Copies every PUBLISHED deck folder (has manifest.json) from _decks/
-//   into community-repo/decks/<name>/
-// - Generates community-repo/index.json from what is actually on disk
+//   into <community>/decks/<name>/
+// - Regenerates <community>/index.json from what is actually on disk
 //   (file lists included — the app downloads files individually over
 //   raw.githubusercontent.com)
 // - Preserves any existing downloads counts in index.json
-// - Lists any .js files in community-repo/community-tools/ as tools
+// - Lists any .js files in <community>/community-tools/ as tools
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..'); // this file lives in js/
 const DECKS_DIR = path.join(ROOT, '_decks');
-const REPO_DIR = path.join(ROOT, 'community-repo');
+const REPO_DIR = path.join(ROOT, '..', '_TECH Blank Slate Community');
 const REPO_DECKS = path.join(REPO_DIR, 'decks');
 const REPO_TOOLS = path.join(REPO_DIR, 'community-tools');
 
@@ -95,13 +100,5 @@ for (const f of fs.readdirSync(REPO_TOOLS)) {
 }
 
 fs.writeFileSync(path.join(REPO_DIR, 'index.json'), JSON.stringify({ decks, tools }, null, 2));
-
-if (!fs.existsSync(path.join(REPO_DIR, 'README.md'))) {
-  fs.writeFileSync(path.join(REPO_DIR, 'README.md'),
-    '# Blank-Slate community\n\nDecks and tools for [Blank-Slate](https://github.com/blank-slate-app/blank-slate).\n' +
-    'The app\'s Decks and Tools panels read `index.json` from this repo.\n\n' +
-    'To contribute: open a pull request adding your published deck folder\nunder `decks/` (and an index entry), ' +
-    'or a tool file under\n`community-tools/`. Merged = live in everyone\'s panel.\n');
-}
 
 console.log(`index.json: ${decks.length} deck(s), ${tools.length} tool(s)`);
