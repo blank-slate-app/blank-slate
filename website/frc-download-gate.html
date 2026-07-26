@@ -1,0 +1,246 @@
+<!-- ============================================================
+     Section: Blank-Slate download gate (terms checkbox → download)
+     Class:   frc-download-gate
+     Elementor settings: place in a section with the site's dark
+     background. For edge-to-edge: Section → Full Width, column
+     padding 0. The widget centers itself (max-width 640px) and
+     brings its own FRC panel styling + page-grid backdrop.
+     TODO before publishing: set data-terms-url on the root div to
+     your Terms & Conditions page URL (e.g. /terms).
+     ============================================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+
+<div class="frc-download-gate" data-terms-url="/terms">
+  <div class="frc-download-gate__panel">
+    <p class="frc-download-gate__kicker">Forma Rosa Creative — Blank-Slate for Windows</p>
+    <h2 class="frc-download-gate__title">Get Blank-Slate</h2>
+    <p class="frc-download-gate__sub">Free for individuals, single-person studios, community
+      contributors, schools, and teams under $100K revenue. Every tool is a
+      file you can remix.</p>
+
+    <label class="frc-download-gate__agree">
+      <input type="checkbox" class="frc-download-gate__check" id="frcDlCheck">
+      <span class="frc-download-gate__box" aria-hidden="true"></span>
+      <span class="frc-download-gate__agreetext">I have read and agree to the
+        <a href="/terms" class="frc-download-gate__termslink">Terms &amp; Conditions</a>
+        and the
+        <a href="https://github.com/blank-slate-app/blank-slate/blob/main/LICENSE.md" target="_blank" rel="noopener">Blank-Slate License</a>.
+      </span>
+    </label>
+
+    <a class="frc-download-gate__btn" id="frcDlBtn"
+       href="https://github.com/blank-slate-app/blank-slate/releases/latest"
+       target="_blank" rel="noopener" aria-disabled="true">
+      Download for Windows
+    </a>
+
+    <p class="frc-download-gate__meta">Windows 10/11 · portable zip — unzip anywhere, run
+      Blank-Slate.exe · unsigned build: if SmartScreen warns, choose
+      “More&nbsp;info → Run&nbsp;anyway”.</p>
+  </div>
+</div>
+
+<style>
+  .frc-download-gate {
+    /* FRC tokens — local to this widget */
+    --frc-peach: #F0C4A0;
+    --frc-peach-25: #F0C9B4;
+    --frc-line: #29251f;
+    --frc-dim: rgba(240, 240, 240, 0.5);
+    --frc-faint: rgba(240, 240, 240, 0.35);
+    --frc-panel: rgba(17, 17, 17, 0.6);
+    --frc-shadow: 0 10px 44px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.4);
+    --frc-serif: 'Cormorant Garamond', Georgia, serif;
+    --frc-sans: 'Inter', 'Helvetica Neue', sans-serif;
+    --frc-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+
+    position: relative;
+    box-sizing: border-box;
+    background-color: #111111;
+    background-image:
+      linear-gradient(rgba(240, 201, 180, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240, 201, 180, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    padding: clamp(40px, 8vw, 96px) 20px;
+    display: flex;
+    justify-content: center;
+    font-family: var(--frc-sans);
+    line-height: 1.5;
+  }
+  .frc-download-gate *,
+  .frc-download-gate *::before,
+  .frc-download-gate *::after { box-sizing: border-box; }
+
+  .frc-download-gate__panel {
+    width: 100%;
+    max-width: 640px;
+    background: var(--frc-panel);
+    border: 1px solid var(--frc-line);
+    border-radius: 10px;
+    box-shadow: var(--frc-shadow);
+    padding: clamp(28px, 6vw, 48px);
+    text-align: center;
+  }
+
+  .frc-download-gate__kicker {
+    margin: 0 0 14px;
+    font-family: var(--frc-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--frc-faint);
+  }
+
+  .frc-download-gate__title {
+    margin: 0 0 10px;
+    font-family: var(--frc-serif);
+    font-weight: 500;
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: #f5f5f5;
+  }
+
+  .frc-download-gate__sub {
+    margin: 0 auto 30px;
+    max-width: 46ch;
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--frc-dim);
+  }
+
+  /* ── agreement row ── */
+  .frc-download-gate__agree {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    max-width: 440px;
+    margin: 0 auto 22px;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .frc-download-gate__check {
+    position: absolute;
+    opacity: 0;
+    width: 1px; height: 1px;
+  }
+  .frc-download-gate__box {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    margin-top: 2px;
+    border: 1px solid var(--frc-dim);
+    border-radius: 3px;
+    position: relative;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .frc-download-gate__box::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 1px;
+    background: var(--frc-peach);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .frc-download-gate__check:checked + .frc-download-gate__box {
+    border-color: var(--frc-peach);
+  }
+  .frc-download-gate__check:checked + .frc-download-gate__box::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .frc-download-gate__check:focus-visible + .frc-download-gate__box {
+    outline: 2px solid var(--frc-peach);
+    outline-offset: 2px;
+  }
+  .frc-download-gate__agreetext {
+    font-size: 12.5px;
+    color: var(--frc-dim);
+  }
+  .frc-download-gate__agreetext a {
+    color: var(--frc-peach);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(240, 196, 160, 0.35);
+    transition: border-color 0.15s;
+  }
+  .frc-download-gate__agreetext a:hover {
+    border-color: var(--frc-peach);
+  }
+
+  /* ── download button ── */
+  .frc-download-gate__btn {
+    display: inline-block;
+    padding: 13px 34px;
+    border-radius: 6px;
+    background: var(--frc-peach);
+    color: #1a1a1a;
+    font-family: var(--frc-sans);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .frc-download-gate__btn:hover { background: var(--frc-peach-25); }
+  .frc-download-gate__btn[aria-disabled="true"] {
+    opacity: 0.35;
+    pointer-events: none;
+    cursor: not-allowed;
+  }
+
+  .frc-download-gate__meta {
+    margin: 22px auto 0;
+    max-width: 52ch;
+    font-family: var(--frc-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #555;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 480px) {
+    .frc-download-gate__btn { display: block; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .frc-download-gate *,
+    .frc-download-gate *::before,
+    .frc-download-gate *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<script>
+(function () {
+  var widget = document.querySelector('.frc-download-gate');
+  if (!widget || widget.dataset.initialized === '1') return;
+  widget.dataset.initialized = '1';
+
+  var check = widget.querySelector('.frc-download-gate__check');
+  var btn = widget.querySelector('.frc-download-gate__btn');
+
+  // Point the inline Terms link at the configured page
+  var termsUrl = widget.dataset.termsUrl;
+  var termsLink = widget.querySelector('.frc-download-gate__termslink');
+  if (termsUrl && termsLink) termsLink.setAttribute('href', termsUrl);
+
+  function sync() {
+    btn.setAttribute('aria-disabled', check.checked ? 'false' : 'true');
+  }
+  check.addEventListener('change', sync);
+  sync();
+
+  // Belt-and-braces: block navigation if somehow clicked while disabled
+  btn.addEventListener('click', function (e) {
+    if (btn.getAttribute('aria-disabled') === 'true') e.preventDefault();
+  });
+})();
+</script>

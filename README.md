@@ -4,6 +4,13 @@ A desktop canvas app for moodboards and pitch decks where **every tool is a
 single file you can read, edit, remix, or write from scratch** — by hand, or
 by pointing an AI agent at the `_tools/` folder.
 
+## License
+
+Source-available, not open source: free for individuals, single-person
+studios, community contributors, schools, and organizations under $100K
+annual revenue. Larger organizations need a commercial license. No
+redistribution or competing products. Full terms: [LICENSE.md](LICENSE.md).
+
 ## Download (just want to use it?)
 
 Grab the latest `Blank-Slate-<version>-win.zip` from
